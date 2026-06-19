@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+
+# model artifacts
+checkpoints/
+*.pt
+*.bin
+*.safetensors
+adapters/
+
+# notebooks
+.ipynb_checkpoints/
+
+# logs
+*.log
+wandb/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
