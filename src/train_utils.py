@@ -1,7 +1,7 @@
 """QLoRA fine-tuning with SFTTrainer."""
 
 import torch
-from peft import LoraConfig
+from peft import LoraConfig, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import SFTConfig, SFTTrainer
 
@@ -61,6 +61,10 @@ def build_trainer(
 
     tokenizer = load_tokenizer(model_config.model_name)
     model = load_model_for_training(model_config)
+    model = prepare_model_for_kbit_training(
+        model,
+        use_gradient_checkpointing=training_config.gradient_checkpointing,
+    )
 
     sft_config = SFTConfig(
         output_dir=training_config.output_dir,
@@ -71,6 +75,7 @@ def build_trainer(
         warmup_ratio=training_config.warmup_ratio,
         lr_scheduler_type=training_config.lr_scheduler_type,
         fp16=training_config.fp16,
+        bf16=False,
         gradient_checkpointing=training_config.gradient_checkpointing,
         optim=training_config.optim,
         save_steps=training_config.save_steps,

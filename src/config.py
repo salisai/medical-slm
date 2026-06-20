@@ -17,7 +17,7 @@ class ModelConfig:
 class DatasetConfig:
     dataset_name: str = "medalpaca/medical_meadow_mediqa"
     dataset_split: str = "train"
-    max_samples: int | None = None  # None = use full dataset (~2.2k rows)
+    max_samples: int | None = None  #use full
 
 
 @dataclass
@@ -47,8 +47,7 @@ class TrainingConfig:
     save_steps: int = 100
     logging_steps: int = 25
     output_dir: str = "./checkpoints"
-    hub_model_id: str | None = None  # set to push adapter to Hugging Face Hub
-
+    hub_model_id: str | None = None 
 
 @dataclass
 class InferenceConfig:

@@ -28,7 +28,9 @@ def load_model_for_inference(
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type=model_config.bnb_4bit_quant_type,
-            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_compute_dtype=getattr(
+                torch, model_config.bnb_4bit_compute_dtype
+            ),
             bnb_4bit_use_double_quant=model_config.bnb_4bit_use_double_quant,
         )
 
