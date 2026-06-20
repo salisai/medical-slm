@@ -41,7 +41,6 @@ class TrainingConfig:
     max_seq_length: int = 512
     warmup_ratio: float = 0.03
     lr_scheduler_type: str = "cosine"
-    fp16: bool = True
     gradient_checkpointing: bool = True
     optim: str = "paged_adamw_8bit"
     save_steps: int = 100

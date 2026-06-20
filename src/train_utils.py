@@ -1,11 +1,21 @@
 """QLoRA fine-tuning with SFTTrainer."""
 
+TRAIN_UTILS_VERSION = "colab-safe-v3"
+
 import torch
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import SFTConfig, SFTTrainer
 
 from src.config import LoRAConfig, ModelConfig, TrainingConfig
+
+
+class ColabSafeSFTTrainer(SFTTrainer):
+    """Never use GradScaler — avoids Colab bf16/fp16 crashes with QLoRA."""
+
+    @property
+    def do_grad_scaling(self):
+        return False
 
 
 def load_tokenizer(model_name: str):
@@ -38,7 +48,6 @@ def load_model_for_training(
 
 
 def _cast_trainable_params_to_fp32(model) -> None:
-    """Keep LoRA grads in fp32 so fp16 GradScaler does not hit bf16 tensors."""
     for param in model.parameters():
         if param.requires_grad:
             param.data = param.data.to(torch.float32)
@@ -61,7 +70,7 @@ def build_trainer(
     training_config: TrainingConfig | None = None,
     model_config: ModelConfig | None = None,
     lora_config: LoRAConfig | None = None,
-) -> SFTTrainer:
+) -> ColabSafeSFTTrainer:
     training_config = training_config or TrainingConfig()
     model_config = model_config or ModelConfig()
     lora_config = lora_config or LoRAConfig()
@@ -75,12 +84,6 @@ def build_trainer(
     model = get_peft_model(model, build_lora_config(lora_config))
     _cast_trainable_params_to_fp32(model)
 
-    trainable_dtypes = {p.dtype for p in model.parameters() if p.requires_grad}
-    if trainable_dtypes != {torch.float32}:
-        raise RuntimeError(
-            f"Trainable params must be float32 for fp16 training, got {trainable_dtypes}"
-        )
-
     sft_config = SFTConfig(
         output_dir=training_config.output_dir,
         num_train_epochs=training_config.num_epochs,
@@ -89,7 +92,7 @@ def build_trainer(
         learning_rate=training_config.learning_rate,
         warmup_ratio=training_config.warmup_ratio,
         lr_scheduler_type=training_config.lr_scheduler_type,
-        fp16=training_config.fp16,
+        fp16=False,
         bf16=False,
         gradient_checkpointing=training_config.gradient_checkpointing,
         optim=training_config.optim,
@@ -102,9 +105,15 @@ def build_trainer(
         push_to_hub=training_config.hub_model_id is not None,
     )
 
-    return SFTTrainer(
+    trainer = ColabSafeSFTTrainer(
         model=model,
         args=sft_config,
         train_dataset=train_dataset,
         processing_class=tokenizer,
     )
+    trainer.args.fp16 = False
+    trainer.args.bf16 = False
+    trainer.use_amp = False
+    if hasattr(trainer, "scaler"):
+        trainer.scaler = None
+    return trainer
