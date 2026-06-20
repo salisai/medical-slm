@@ -1,7 +1,7 @@
 """QLoRA fine-tuning with SFTTrainer."""
 
 import torch
-from peft import LoraConfig, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from trl import SFTConfig, SFTTrainer
 
@@ -37,6 +37,13 @@ def load_model_for_training(
     return model
 
 
+def _cast_trainable_params_to_fp32(model) -> None:
+    """Keep LoRA grads in fp32 so fp16 GradScaler does not hit bf16 tensors."""
+    for param in model.parameters():
+        if param.requires_grad:
+            param.data = param.data.to(torch.float32)
+
+
 def build_lora_config(lora_config: LoRAConfig | None = None) -> LoraConfig:
     lora_config = lora_config or LoRAConfig()
     return LoraConfig(
@@ -65,6 +72,14 @@ def build_trainer(
         model,
         use_gradient_checkpointing=training_config.gradient_checkpointing,
     )
+    model = get_peft_model(model, build_lora_config(lora_config))
+    _cast_trainable_params_to_fp32(model)
+
+    trainable_dtypes = {p.dtype for p in model.parameters() if p.requires_grad}
+    if trainable_dtypes != {torch.float32}:
+        raise RuntimeError(
+            f"Trainable params must be float32 for fp16 training, got {trainable_dtypes}"
+        )
 
     sft_config = SFTConfig(
         output_dir=training_config.output_dir,
@@ -92,5 +107,4 @@ def build_trainer(
         args=sft_config,
         train_dataset=train_dataset,
         processing_class=tokenizer,
-        peft_config=build_lora_config(lora_config),
     )
